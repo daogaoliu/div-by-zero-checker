@@ -1,16 +1,18 @@
 package org.checkerframework.checker.dividebyzero;
 
+import com.sun.source.tree.BinaryTree;
+import com.sun.source.tree.CompoundAssignmentTree;
+import com.sun.source.tree.ExpressionTree;
+import com.sun.source.tree.Tree;
+import org.checkerframework.checker.dividebyzero.qual.Top;
+import org.checkerframework.checker.dividebyzero.qual.Zero;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.basetype.BaseTypeVisitor;
 
 import javax.lang.model.type.TypeKind;
 import java.lang.annotation.Annotation;
-import com.sun.source.tree.*;
-
-import java.util.Set;
 import java.util.EnumSet;
-
-import org.checkerframework.checker.dividebyzero.qual.*;
+import java.util.Set;
 
 public class DivByZeroVisitor extends BaseTypeVisitor<DivByZeroAnnotatedTypeFactory> {
 
@@ -30,6 +32,13 @@ public class DivByZeroVisitor extends BaseTypeVisitor<DivByZeroAnnotatedTypeFact
     private boolean errorAt(BinaryTree node) {
         // A BinaryTree can represent any binary operator, including + or -.
         // TODO
+        if (DIVISION_OPERATORS.contains(node.getKind())) {
+            ExpressionTree rhs = node.getRightOperand();
+            if (hasAnnotation(rhs, Zero.class) || hasAnnotation(rhs, Top.class))
+            {
+                return true;
+            }
+        }
         return false;
     }
 
@@ -43,6 +52,12 @@ public class DivByZeroVisitor extends BaseTypeVisitor<DivByZeroAnnotatedTypeFact
         // A CompoundAssignmentTree represents any binary operator combined with an assignment,
         // such as "x += 10".
         // TODO
+        ExpressionTree rhs = node.getExpression();
+        if (DIVISION_OPERATORS.contains(node.getKind())) {
+            if (hasAnnotation(rhs, Zero.class) || hasAnnotation(rhs, Top.class)) {
+                return true;
+            }
+        }
         return false;
     }
 

@@ -1,25 +1,23 @@
 package org.checkerframework.checker.dividebyzero;
 
-import org.checkerframework.dataflow.expression.JavaExpression;
-import org.checkerframework.framework.type.QualifierHierarchy;
-import org.checkerframework.framework.flow.CFTransfer;
-import org.checkerframework.framework.flow.CFValue;
-import org.checkerframework.framework.flow.CFStore;
-import org.checkerframework.framework.flow.CFAnalysis;
-import org.checkerframework.dataflow.cfg.node.*;
+import org.checkerframework.checker.dividebyzero.qual.*;
+import org.checkerframework.dataflow.analysis.ConditionalTransferResult;
+import org.checkerframework.dataflow.analysis.RegularTransferResult;
 import org.checkerframework.dataflow.analysis.TransferInput;
 import org.checkerframework.dataflow.analysis.TransferResult;
-import org.checkerframework.dataflow.analysis.RegularTransferResult;
-import org.checkerframework.dataflow.analysis.ConditionalTransferResult;
+import org.checkerframework.dataflow.cfg.node.*;
+import org.checkerframework.dataflow.expression.JavaExpression;
+import org.checkerframework.framework.flow.CFAnalysis;
+import org.checkerframework.framework.flow.CFStore;
+import org.checkerframework.framework.flow.CFTransfer;
+import org.checkerframework.framework.flow.CFValue;
+import org.checkerframework.framework.type.QualifierHierarchy;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
 
 import javax.lang.model.element.AnnotationMirror;
 import java.lang.annotation.Annotation;
-
 import java.util.Set;
-
-import org.checkerframework.checker.dividebyzero.qual.*;
 
 public class DivByZeroTransfer extends CFTransfer {
 
@@ -72,8 +70,59 @@ public class DivByZeroTransfer extends CFTransfer {
             AnnotationMirror lhs,
             AnnotationMirror rhs) {
         // TODO
+        AnnotationMirror zero = reflect(Zero.class);
+        AnnotationMirror pos = reflect(Positive.class);
+        AnnotationMirror neg = reflect(Negative.class);
+        AnnotationMirror nz = reflect(NonZero.class);
+
+        if (equal(lhs,bottom())){
+            return bottom();
+        }
+
+        if (equal(rhs, bottom())) {
+            return lhs;
+        }
+
+        switch (operator)
+        {
+            case EQ:
+                return glb(lhs,rhs);
+            case NE:
+//                System.out.println(lhs);
+//                System.out.println(rhs);
+                if (equal(rhs, zero))
+                {
+//                    System.out.println(glb(lhs, nz));
+                    return glb(lhs,nz);
+                } else return lhs;
+            case LT:
+                if (equal(rhs,zero)||equal(rhs,neg))
+                {
+                    return glb(lhs,neg);
+                }
+                break;
+            case GT:
+                if (equal(rhs,zero)||equal(rhs,pos))
+                {
+                    return glb(lhs,pos);
+                }
+                break;
+            case GE:
+                if (equal(rhs,pos))
+                {
+                    return glb(lhs,pos);
+                }
+                break;
+            case LE:
+                if (equal(rhs,neg))
+                {
+                    return  glb(lhs,neg);
+                }
+                break;
+        }
         return lhs;
     }
+
 
     /**
      * For an arithmetic expression (lhs `op` rhs), compute the point in the
@@ -94,6 +143,122 @@ public class DivByZeroTransfer extends CFTransfer {
             AnnotationMirror lhs,
             AnnotationMirror rhs) {
         // TODO
+        AnnotationMirror zero = reflect(Zero.class);
+        AnnotationMirror pos = reflect(Positive.class);
+        AnnotationMirror neg = reflect(Negative.class);
+        AnnotationMirror nz = reflect(NonZero.class);
+        AnnotationMirror top = reflect(Top.class);
+
+        if (equal(lhs, bottom()) || equal(rhs, bottom())) {
+            return bottom();
+        }
+
+        switch (operator){
+            case PLUS:
+                //    +           0    |    pos    |    neg    |   nz  |   top
+                //    0      {  zero   ,   pos  ,   neg  ,   nz  ,   top   },
+                //    pos      {  pos   ,  pos    ,    top   ,   top   , top  },
+                //    neg      {  neg   ,  top    ,   neg   ,   top   , top   },
+                //    nz     {  nz   ,  top    ,   top   ,   top   ,  top     },
+                //   top     {  top    ,  top    ,  top    ,  top    ,  top   }
+                if(equal(rhs,zero))
+                {
+                    return lhs;
+                } else if (equal(rhs,pos)) {
+                    if (equal(lhs,zero)||equal(lhs,pos))
+                    {
+                        return pos;
+                    }
+                    return top();
+                } else if (equal(rhs,neg)) {
+                    if (equal(lhs,zero) || equal(lhs,neg))
+                    {
+                        return neg;
+                    }
+                } else if (equal(rhs,nz)&& equal(rhs,zero)) {
+                    return nz;
+                }
+                break;
+            case MINUS:
+                //    -           0    |    pos    |    neg    |   nz  |   top
+                //    0      {  zero   ,   neg    ,   pos  ,   nz  ,   top   },
+                //    pos      {  pos   ,  top    ,    pos   ,   top   , top  },
+                //    neg      {  neg   ,  neg    ,   top   ,   top   , top   },
+                //    nz     {  nz   ,   top    ,   top   ,   top   ,  top     },
+                //   top     {  top    ,  top    ,  top    ,  top    ,  top   }
+                if(equal(rhs,zero))
+                {
+                    return lhs;
+                } else if (equal(rhs,pos)) {
+                    if (equal(lhs,zero) || equal(lhs,neg)){
+                        return neg;
+                    }
+                } else if (equal(rhs,neg)) {
+                    if (equal(lhs,zero)|| equal(lhs,pos))
+                    {
+                        return pos;
+                    }
+                } else if (equal(rhs,nz) && equal(rhs,nz)) {
+                    return  nz;
+                }
+                break;
+            case TIMES:
+                //    *           0    |    pos    |    neg    |   nz  |   top
+                //    0      {  zero   ,   zero    ,   zero  ,   zero  ,   zero   },
+                //    pos      {  zero   ,  pos    ,    neg   ,   nz   , top  },
+                //    neg      {  zero   ,  neg    ,   pos   ,   nz   , top   },
+                //    nz     {  zero   ,   nz    ,   nz   ,   nz   ,  top     },
+                //   top     {  zero    ,  top    ,  top    ,  top    ,  top   }
+                if (equal(rhs,zero)|| equal(lhs,zero))
+                {
+                    return  zero;
+                } else if (equal(rhs,pos)) {
+                    return lhs;
+                } else if (equal(rhs,neg)) {
+                    if (equal(lhs,pos))
+                    {
+                        return neg;
+                    }else if (equal(lhs,neg))
+                    {
+                        return pos;
+                    } else return lhs;
+                } else if (equal(rhs,nz)) {
+                    if (equal(lhs,pos)||equal(lhs,neg)||equal(lhs,nz))
+                    {
+                        return nz;
+                    }
+                }
+                break;
+            case MOD:
+                //    mod           0    |    pos    |    neg    |   nz  |   top
+                //    0      {  NULL   ,   zero    ,   zero  ,   zero  ,   NULL   },
+                //    pos      {  NULL   ,  top    ,    top   ,   top   , NULL  },
+                //    neg      {  NULL   ,  top    ,   top   ,   top   , NULL   },
+                //    nz     {  NULL   ,   top    ,   top   ,   top   ,  NULL     },
+                //   top     {  NULL    ,  top    ,  top    ,  top    ,  NULL   }
+                if (rhs.equals(zero)||rhs.equals(top))
+                {
+                    return bottom();
+                } else if (equal(lhs,zero)) {
+                    return zero;
+                }
+                break;
+            case DIVIDE:
+                //    \           0    |    pos    |    neg    |   nz  |   top
+                //    0      {  NULL   ,   zero    ,   zero  ,   zero  ,   NULL   },
+                //    pos      {  NULL   ,  top    ,    top   ,   top   , NULL  },
+                //    neg      {  NULL   ,  top    ,   top   ,   top   , NULL   },
+                //    nz     {  NULL   ,   top    ,   top   ,   top   ,  NULL     },
+                //   top     {  NULL    ,  top    ,  top    ,  top    ,  NULL   }
+                if (equal(rhs,zero)||equal(rhs,top))
+                {
+                    return bottom();
+                } else if (equal(lhs,zero))
+                {
+                    return zero;
+                }
+                break;
+        };
         return top();
     }
 
@@ -123,8 +288,8 @@ public class DivByZeroTransfer extends CFTransfer {
     /** Convert a "Class" object (e.g. "Top.class") to a point in the lattice */
     private AnnotationMirror reflect(Class<? extends Annotation> qualifier) {
         return AnnotationBuilder.fromClass(
-            analysis.getTypeFactory().getProcessingEnv().getElementUtils(),
-            qualifier);
+                analysis.getTypeFactory().getProcessingEnv().getElementUtils(),
+                qualifier);
     }
 
     /** Determine whether two AnnotationMirrors are the same point in the lattice */
@@ -180,19 +345,19 @@ public class DivByZeroTransfer extends CFTransfer {
 
         thenStore.insertValue(
                 JavaExpression.fromNode(n.getLeftOperand()),
-            refineLhsOfComparison(op, l, r));
+                refineLhsOfComparison(op, l, r));
 
         thenStore.insertValue(
-            JavaExpression.fromNode(n.getRightOperand()),
-            refineLhsOfComparison(flip(op), r, l));
+                JavaExpression.fromNode(n.getRightOperand()),
+                refineLhsOfComparison(flip(op), r, l));
 
         elseStore.insertValue(
-            JavaExpression.fromNode(n.getLeftOperand()),
-            refineLhsOfComparison(negate(op), l, r));
+                JavaExpression.fromNode(n.getLeftOperand()),
+                refineLhsOfComparison(negate(op), l, r));
 
         elseStore.insertValue(
-            JavaExpression.fromNode(n.getRightOperand()),
-            refineLhsOfComparison(flip(negate(op)), r, l));
+                JavaExpression.fromNode(n.getRightOperand()),
+                refineLhsOfComparison(flip(negate(op)), r, l));
 
         return new ConditionalTransferResult<>(out.getResultValue(), thenStore, elseStore);
     }

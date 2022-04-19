@@ -11,3 +11,5 @@ build
 
 # checker-qual
 dividebyzero-checker-qual/src
+
+.DS_Store

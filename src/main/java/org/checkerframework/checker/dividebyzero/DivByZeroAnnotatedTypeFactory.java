@@ -1,10 +1,10 @@
 package org.checkerframework.checker.dividebyzero;
 
-import com.sun.source.tree.BinaryTree;
-import com.sun.source.tree.CompoundAssignmentTree;
-import com.sun.source.tree.LiteralTree;
-import com.sun.source.tree.Tree;
-import com.sun.source.tree.UnaryTree;
+import com.sun.source.tree.*;
+import org.checkerframework.checker.dividebyzero.qual.Negative;
+import org.checkerframework.checker.dividebyzero.qual.Positive;
+import org.checkerframework.checker.dividebyzero.qual.Top;
+import org.checkerframework.checker.dividebyzero.qual.Zero;
 import org.checkerframework.common.basetype.BaseAnnotatedTypeFactory;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
@@ -15,8 +15,6 @@ import org.checkerframework.javacutil.AnnotationBuilder;
 
 import javax.lang.model.element.AnnotationMirror;
 import java.lang.annotation.Annotation;
-
-import org.checkerframework.checker.dividebyzero.qual.*;
 
 public class DivByZeroAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
 
@@ -31,11 +29,13 @@ public class DivByZeroAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
         case INT_LITERAL:
             int intValue = (Integer)literal.getValue();
             // TODO
-            break;
-        case LONG_LITERAL:
+//            break;
+            return (intValue > 0) ? Positive.class : ((intValue < 0) ? Negative.class : Zero.class);
+            case LONG_LITERAL:
             long longValue = (Long)literal.getValue();
             // TODO
-            break;
+//            break;
+            return (longValue > 0L) ? Positive.class : ((longValue < 0L) ? Negative.class : Zero.class);
         }
         return Top.class;
     }
